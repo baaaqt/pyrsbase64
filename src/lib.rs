@@ -6,7 +6,7 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
 #[pyfunction]
-fn encodebytes(s: &Bound<'_, PyAny>) -> PyResult<Vec<u8>> {
+fn b64encode(s: &Bound<'_, PyAny>) -> PyResult<Vec<u8>> {
     let buf = PyBuffer::<u8>::get(s)?;
     if !buf.is_c_contiguous() {
         return Err(PyErr::new::<pyo3::exceptions::PyBufferError, _>(
@@ -30,19 +30,18 @@ fn encodebytes(s: &Bound<'_, PyAny>) -> PyResult<Vec<u8>> {
         Err(PyErr::new::<PyValueError, _>(
             "Integer overflow when calculating buffer size",
         )),
-        |x| Ok(x + 1),
+        |x| Ok(x),
     )?;
 
     let mut buf = vec![0u8; size];
     base64_standard
         .encode_slice(bytes, &mut buf)
         .map_err(|e| PyErr::new::<PyValueError, _>(format!("Base64 encoding error: {}", e)))?;
-    buf[size - 1] = b'\n';
     Ok(buf)
 }
 
 #[pymodule]
 fn pyrsbase64(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_function(wrap_pyfunction!(encodebytes, m)?)?;
+    m.add_function(wrap_pyfunction!(b64encode, m)?)?;
     Ok(())
 }
