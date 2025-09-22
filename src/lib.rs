@@ -80,8 +80,12 @@ fn b64encode(s: &Bound<'_, PyAny>, altchars: Option<&Bound<'_, PyAny>>) -> PyRes
 }
 
 #[pyfunction]
-#[pyo3(signature = (s, altchars=None))]
-fn b64decode(s: &Bound<'_, PyAny>, altchars: Option<&Bound<'_, PyAny>>) -> PyResult<Vec<u8>> {
+#[pyo3(signature = (s, altchars=None, validate=false))]
+fn b64decode(
+    s: &Bound<'_, PyAny>,
+    altchars: Option<&Bound<'_, PyAny>>,
+    validate: bool,
+) -> PyResult<Vec<u8>> {
     let bytes = if let Ok(s) = s.extract::<&str>() {
         s.as_bytes()
     } else if let Ok(s) = slice_from_py_any(s) {
@@ -109,15 +113,43 @@ fn b64decode(s: &Bound<'_, PyAny>, altchars: Option<&Bound<'_, PyAny>>) -> PyRes
     };
 
     let bytes = if let Some((c1, c2)) = altchars {
-        let mut modified = bytes.to_vec();
-        for byte in &mut modified {
-            if *byte == c1 {
-                *byte = b'+';
-            } else if *byte == c2 {
-                *byte = b'/';
-            }
+        if !validate {
+            bytes
+                .iter()
+                .filter_map(|&b| {
+                    if b == c1 {
+                        Some(b'+')
+                    } else if b == c2 {
+                        Some(b'/')
+                    } else {
+                        if b.is_ascii_alphanumeric() || b == b'+' || b == b'/' || b == b'=' {
+                            Some(b)
+                        } else {
+                            None
+                        }
+                    }
+                })
+                .collect()
+        } else {
+            bytes
+                .iter()
+                .map(|&b| {
+                    if b == c1 {
+                        b'+'
+                    } else if b == c2 {
+                        b'/'
+                    } else {
+                        b
+                    }
+                })
+                .collect()
         }
-        modified
+    } else if !validate {
+        bytes
+            .iter()
+            .filter(|&&b| b.is_ascii_alphanumeric() || b == b'+' || b == b'/' || b == b'=')
+            .cloned()
+            .collect()
     } else {
         bytes.to_vec()
     };
