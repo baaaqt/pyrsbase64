@@ -18,6 +18,7 @@ if TYPE_CHECKING:
         bytes(range(256)),
         b"\x00" * 1024,
         memoryview(b"hello world"),
+        bytearray(b"hello world"),
     ],
 )
 def test_b64encode(data: "ReadableBuffer") -> None:
