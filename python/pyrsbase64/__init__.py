@@ -1,6 +1,5 @@
-from typing import Sequence
+from collections.abc import Sequence
 
-from .pyrsbase64 import b64encode
+from .pyrsbase64 import b64decode, b64encode
 
-
-__all__: Sequence[str] = ["b64encode"]
+__all__: Sequence[str] = ["b64encode", "b64decode"]
