@@ -40,7 +40,6 @@ def test_b64encode_altchars(data: "ReadableBuffer") -> None:
     altchars = b"-_"
     assert base64.b64encode(data, altchars) == pyrsbase64.b64encode(data, altchars)
 
-
 @pytest.mark.parametrize(
     "data",
     [
