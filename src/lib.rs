@@ -106,7 +106,7 @@ fn b64decode(
 
     let (altchars, engine) = get_engine(altchars)?;
 
-    let cleared = if !validate {
+    let decode_result = if !validate {
         let mut valid = [false; 256];
 
         for &b in b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789=" {
@@ -115,16 +115,17 @@ fn b64decode(
         valid[altchars[0] as usize] = true;
         valid[altchars[1] as usize] = true;
 
-        bytes
+        let bytes = bytes
             .iter()
             .copied()
             .filter(|&b| valid[b as usize])
-            .collect()
+            .collect::<Vec<u8>>();
+        engine.decode(&bytes)
     } else {
-        bytes.to_vec()
+        engine.decode(bytes)
     };
 
-    engine.decode(&cleared).map_err(|e: base64::DecodeError| {
+    decode_result.map_err(|e: base64::DecodeError| {
         PyErr::new::<PyValueError, _>(format!("Base64 decoding error: {}", e))
     })
 }
