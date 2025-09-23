@@ -16,6 +16,17 @@ fn altchars_engine(altchars: [u8; 2]) -> PyResult<GeneralPurpose> {
     Ok(GeneralPurpose::new(&alphabet, PAD))
 }
 
+fn get_engine(altchars: Option<&Bound<'_, PyAny>>) -> PyResult<([u8; 2], GeneralPurpose)> {
+    if let Some(alt) = altchars {
+        let alt_bytes = slice_from_py_any(alt)?;
+        let alt_bytes = validate_altchars(alt_bytes)?;
+        let engine = altchars_engine(alt_bytes)?;
+        Ok((alt_bytes, engine))
+    } else {
+        Ok(([b'+', b'/'], base64_standard))
+    }
+}
+
 fn slice_from_py_any<'a>(py_obj: &Bound<'a, PyAny>) -> PyResult<&'a [u8]> {
     let buf = PyBuffer::<u8>::get(py_obj)?;
     if !buf.is_c_contiguous() {
@@ -58,12 +69,7 @@ fn validate_altchars(altchars: &[u8]) -> PyResult<[u8; 2]> {
 #[pyo3(signature = (s, altchars=None))]
 fn b64encode(s: &Bound<'_, PyAny>, altchars: Option<&Bound<'_, PyAny>>) -> PyResult<Vec<u8>> {
     let bytes = slice_from_py_any(s)?;
-    let engine = if let Some(alt) = altchars {
-        let alt_bytes = slice_from_py_any(alt)?;
-        altchars_engine(validate_altchars(alt_bytes)?)?
-    } else {
-        base64_standard
-    };
+    let (_, engine) = get_engine(altchars)?;
 
     let size = encoded_len(bytes.len(), base64_standard.config().encode_padding()).map_or(
         Err(PyErr::new::<PyValueError, _>(
@@ -98,13 +104,7 @@ fn b64decode(
         )));
     };
 
-    let (altchars, engine) = if let Some(alt) = altchars {
-        let alt_bytes = slice_from_py_any(alt)?;
-        let alt_bytes = validate_altchars(alt_bytes)?;
-        (alt_bytes, altchars_engine(alt_bytes)?)
-    } else {
-        ([b'+', b'/'], base64_standard)
-    };
+    let (altchars, engine) = get_engine(altchars)?;
 
     let cleared = if !validate {
         let mut valid = [false; 256];
@@ -115,7 +115,8 @@ fn b64decode(
         valid[altchars[0] as usize] = true;
         valid[altchars[1] as usize] = true;
 
-        bytes.iter()
+        bytes
+            .iter()
             .copied()
             .filter(|&b| valid[b as usize])
             .collect()
@@ -123,11 +124,9 @@ fn b64decode(
         bytes.to_vec()
     };
 
-    engine
-        .decode(&cleared)
-        .map_err(|e: base64::DecodeError| {
-            PyErr::new::<PyValueError, _>(format!("Base64 decoding error: {}", e))
-        })
+    engine.decode(&cleared).map_err(|e: base64::DecodeError| {
+        PyErr::new::<PyValueError, _>(format!("Base64 decoding error: {}", e))
+    })
 }
 
 #[pymodule]
