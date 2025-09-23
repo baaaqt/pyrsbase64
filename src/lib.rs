@@ -1,9 +1,20 @@
-use base64::engine::general_purpose::STANDARD as base64_standard;
+use base64::alphabet::Alphabet;
+use base64::engine::general_purpose::{GeneralPurpose, PAD, STANDARD as base64_standard};
 use base64::engine::Config;
 use base64::{encoded_len, Engine};
 use pyo3::buffer::PyBuffer;
 use pyo3::exceptions::{PyBufferError, PyTypeError, PyValueError};
 use pyo3::prelude::*;
+
+fn altchars_engine(altchars: [u8; 2]) -> PyResult<GeneralPurpose> {
+    let altchars = altchars.iter().map(|&x| x as char).collect::<String>();
+    let alphabet = Alphabet::new(&format!(
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789{}",
+        altchars
+    ))
+    .map_err(|_| PyErr::new::<PyValueError, _>(format!("Invalid altchars: {}", altchars)))?;
+    Ok(GeneralPurpose::new(&alphabet, PAD))
+}
 
 fn slice_from_py_any<'a>(py_obj: &Bound<'a, PyAny>) -> PyResult<&'a [u8]> {
     let buf = PyBuffer::<u8>::get(py_obj)?;
@@ -34,24 +45,24 @@ fn slice_from_py_any<'a>(py_obj: &Bound<'a, PyAny>) -> PyResult<&'a [u8]> {
     Ok(bytes)
 }
 
-fn validate_altchars(altchars: &[u8]) -> PyResult<(u8, u8)> {
+fn validate_altchars(altchars: &[u8]) -> PyResult<[u8; 2]> {
     if altchars.len() != 2 {
         return Err(PyErr::new::<PyValueError, _>(
             "altchars must be a bytes-like object of length 2",
         ));
     }
-    Ok((altchars[0], altchars[1]))
+    Ok([altchars[0], altchars[1]])
 }
 
 #[pyfunction]
 #[pyo3(signature = (s, altchars=None))]
 fn b64encode(s: &Bound<'_, PyAny>, altchars: Option<&Bound<'_, PyAny>>) -> PyResult<Vec<u8>> {
     let bytes = slice_from_py_any(s)?;
-    let altchars = if let Some(alt) = altchars {
+    let engine = if let Some(alt) = altchars {
         let alt_bytes = slice_from_py_any(alt)?;
-        Some(validate_altchars(alt_bytes)?)
+        altchars_engine(validate_altchars(alt_bytes)?)?
     } else {
-        None
+        base64_standard
     };
 
     let size = encoded_len(bytes.len(), base64_standard.config().encode_padding()).map_or(
@@ -62,19 +73,9 @@ fn b64encode(s: &Bound<'_, PyAny>, altchars: Option<&Bound<'_, PyAny>>) -> PyRes
     )?;
 
     let mut buf = vec![0u8; size];
-    base64_standard
+    engine
         .encode_slice(bytes, &mut buf)
         .map_err(|e| PyErr::new::<PyValueError, _>(format!("Base64 encoding error: {}", e)))?;
-
-    if let Some(chars) = altchars {
-        for byte in &mut buf {
-            if *byte == b'+' {
-                *byte = chars.0;
-            } else if *byte == b'/' {
-                *byte = chars.1;
-            }
-        }
-    }
 
     Ok(buf)
 }
@@ -97,65 +98,30 @@ fn b64decode(
         )));
     };
 
-    let altchars = if let Some(altchars) = altchars {
-        if let Ok(altchars) = altchars.extract::<&str>() {
-            Some(validate_altchars(altchars.as_bytes())?)
-        } else if let Ok(altchars) = slice_from_py_any(altchars) {
-            Some(validate_altchars(altchars)?)
-        } else {
-            return Err(PyErr::new::<PyTypeError, _>(format!(
-                "altchars should be a bytes-like object or ASCII string, not '{}'",
-                altchars.get_type().name()?
-            )));
-        }
+    let (altchars, engine) = if let Some(alt) = altchars {
+        let alt_bytes = slice_from_py_any(alt)?;
+        let alt_bytes = validate_altchars(alt_bytes)?;
+        (alt_bytes, altchars_engine(alt_bytes)?)
     } else {
-        None
+        ([b'+', b'/'], base64_standard)
     };
 
-    let bytes = if let Some((c1, c2)) = altchars {
+    let cleared = {
         if !validate {
-            bytes
-                .iter()
-                .filter_map(|&b| {
-                    if b == c1 {
-                        Some(b'+')
-                    } else if b == c2 {
-                        Some(b'/')
-                    } else {
-                        if b.is_ascii_alphanumeric() || b == b'+' || b == b'/' || b == b'=' {
-                            Some(b)
-                        } else {
-                            None
-                        }
-                    }
-                })
-                .collect()
+            let mut v = Vec::with_capacity(bytes.len());
+            for &b in bytes {
+                if b.is_ascii_alphanumeric() || b == altchars[0] || b == altchars[1] || b == b'=' {
+                    v.push(b);
+                };
+            }
+            v
         } else {
-            bytes
-                .iter()
-                .map(|&b| {
-                    if b == c1 {
-                        b'+'
-                    } else if b == c2 {
-                        b'/'
-                    } else {
-                        b
-                    }
-                })
-                .collect()
+            bytes.to_vec()
         }
-    } else if !validate {
-        bytes
-            .iter()
-            .filter(|&&b| b.is_ascii_alphanumeric() || b == b'+' || b == b'/' || b == b'=')
-            .cloned()
-            .collect()
-    } else {
-        bytes.to_vec()
     };
 
-    base64_standard
-        .decode(&bytes)
+    engine
+        .decode(&cleared)
         .map_err(|e: base64::DecodeError| {
             PyErr::new::<PyValueError, _>(format!("Base64 decoding error: {}", e))
         })
