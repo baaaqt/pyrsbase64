@@ -106,18 +106,21 @@ fn b64decode(
         ([b'+', b'/'], base64_standard)
     };
 
-    let cleared = {
-        if !validate {
-            let mut v = Vec::with_capacity(bytes.len());
-            for &b in bytes {
-                if b.is_ascii_alphanumeric() || b == altchars[0] || b == altchars[1] || b == b'=' {
-                    v.push(b);
-                };
-            }
-            v
-        } else {
-            bytes.to_vec()
+    let cleared = if !validate {
+        let mut valid = [false; 256];
+
+        for &b in b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789=" {
+            valid[b as usize] = true;
         }
+        valid[altchars[0] as usize] = true;
+        valid[altchars[1] as usize] = true;
+
+        bytes.iter()
+            .copied()
+            .filter(|&b| valid[b as usize])
+            .collect()
+    } else {
+        bytes.to_vec()
     };
 
     engine
