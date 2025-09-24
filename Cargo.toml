@@ -10,5 +10,5 @@ crate-type = ["cdylib"]
 
 [dependencies]
 base64 = "0.22.1"
-base64-simd = "0.8.0"
-pyo3 = "0.24.0"
+pyo3 = { version = "^0.26" }
+
