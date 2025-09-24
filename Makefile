@@ -10,7 +10,7 @@ test:
 	maturin develop
 	uv run pytest
 
-test-release:
+test-r:
 	maturin develop -r
 	uv run pytest
 
