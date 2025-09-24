@@ -2,11 +2,11 @@ use base64::alphabet::Alphabet;
 use base64::engine::general_purpose::{GeneralPurpose, PAD, STANDARD as base64_standard};
 use base64::engine::Config;
 use base64::{encoded_len, Engine};
-use pyo3::buffer::PyBuffer;
-use pyo3::exceptions::{PyBufferError, PyTypeError, PyValueError};
+use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
 
 use crate::altchars::Altchars;
+use crate::pybuf::convert_pybytebuf_to_slice;
 
 mod altchars;
 mod pybuf;
@@ -23,39 +23,10 @@ fn altchars_engine(altchars: Altchars) -> PyResult<GeneralPurpose> {
     Ok(GeneralPurpose::new(&alphabet, PAD))
 }
 
-fn slice_from_py_any<'a>(py_obj: &Bound<'a, PyAny>) -> PyResult<&'a [u8]> {
-    let buf = PyBuffer::<u8>::get(py_obj)?;
-    if !buf.is_c_contiguous() {
-        return Err(PyErr::new::<pyo3::exceptions::PyBufferError, _>(
-            "Object does not have a contiguous buffer",
-        ));
-    }
-
-    if buf.item_size() != 1 {
-        return Err(PyErr::new::<PyBufferError, _>(
-            "Buffer item size is not 1 byte",
-        ));
-    }
-
-    if buf.item_count() == 0 {
-        return Ok(&[] as &[u8]);
-    }
-
-    let ptr = buf.buf_ptr();
-    if ptr.is_null() {
-        return Err(PyErr::new::<PyBufferError, _>("Buffer pointer is null"));
-    }
-
-    // SAFETY: We have verified that the buffer is contiguous and non-empty.
-    let bytes = unsafe { std::slice::from_raw_parts(ptr as *const u8, buf.item_count()) };
-
-    Ok(bytes)
-}
-
 #[pyfunction]
 #[pyo3(signature = (s, altchars=None))]
 fn b64encode(s: &Bound<'_, PyAny>, altchars: Option<Altchars>) -> PyResult<Vec<u8>> {
-    let bytes = slice_from_py_any(s)?;
+    let bytes = convert_pybytebuf_to_slice(s)?;
     let engine = altchars_engine(altchars.unwrap_or(Altchars::default()))?;
 
     let size = encoded_len(bytes.len(), base64_standard.config().encode_padding()).map_or(
@@ -82,7 +53,7 @@ fn b64decode(
 ) -> PyResult<Vec<u8>> {
     let bytes = if let Ok(s) = s.extract::<&str>() {
         s.as_bytes()
-    } else if let Ok(s) = slice_from_py_any(s) {
+    } else if let Ok(s) = convert_pybytebuf_to_slice(s) {
         s
     } else {
         return Err(PyErr::new::<PyTypeError, _>(format!(
