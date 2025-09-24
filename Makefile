@@ -1,10 +1,10 @@
 lint:
 	maturin develop
-	ruff check python --fix
-	mypy python
+	uv run ruff check python --fix
+	uv run mypy python
 
 format:
-	ruff format python
+	uv run ruff format python
 
 test:
 	maturin develop
