@@ -104,8 +104,8 @@ fn b64decode(
         for &b in b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789=" {
             valid[b as usize] = true;
         }
-        valid[altchars[0] as usize] = true;
-        valid[altchars[1] as usize] = true;
+        valid[altchars.plus() as usize] = true;
+        valid[altchars.slash() as usize] = true;
 
         let bytes = bytes
             .iter()

@@ -1,4 +1,4 @@
-use std::{fmt::Display, ops::Index};
+use std::fmt::Display;
 
 use pyo3::prelude::*;
 
@@ -20,6 +20,18 @@ impl Altchars {
     pub const fn default() -> Self {
         Altchars((b'+', b'/'))
     }
+
+    /// Returns the '+' alternative character.
+    #[inline]
+    pub fn plus(&self) -> u8 {
+        self.0 .0
+    }
+
+    /// Returns the '/' alternative character.
+    #[inline]
+    pub fn slash(&self) -> u8 {
+        self.0 .1
+    }
 }
 
 impl<'py> FromPyObject<'py> for Altchars {
@@ -31,19 +43,6 @@ impl<'py> FromPyObject<'py> for Altchars {
             ));
         }
         Ok(Altchars::new(bytes[0], bytes[1]))
-    }
-}
-
-impl Index<u8> for Altchars {
-    type Output = u8;
-
-    #[inline]
-    fn index(&self, index: u8) -> &Self::Output {
-        match index {
-            0 => &self.0 .0,
-            1 => &self.0 .1,
-            _ => panic!("Index out of bounds for Altchars: {}", index),
-        }
     }
 }
 
