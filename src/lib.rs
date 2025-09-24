@@ -6,25 +6,21 @@ use pyo3::buffer::PyBuffer;
 use pyo3::exceptions::{PyBufferError, PyTypeError, PyValueError};
 use pyo3::prelude::*;
 
-fn altchars_engine(altchars: [u8; 2]) -> PyResult<GeneralPurpose> {
-    let altchars = altchars.iter().map(|&x| x as char).collect::<String>();
+use crate::altchars::Altchars;
+
+mod altchars;
+mod pybuf;
+
+fn altchars_engine(altchars: Altchars) -> PyResult<GeneralPurpose> {
+    if altchars == Altchars::default() {
+        return Ok(base64_standard);
+    }
     let alphabet = Alphabet::new(&format!(
         "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789{}",
         altchars
     ))
     .map_err(|_| PyErr::new::<PyValueError, _>(format!("Invalid altchars: {}", altchars)))?;
     Ok(GeneralPurpose::new(&alphabet, PAD))
-}
-
-fn get_engine(altchars: Option<&Bound<'_, PyAny>>) -> PyResult<([u8; 2], GeneralPurpose)> {
-    if let Some(alt) = altchars {
-        let alt_bytes = slice_from_py_any(alt)?;
-        let alt_bytes = validate_altchars(alt_bytes)?;
-        let engine = altchars_engine(alt_bytes)?;
-        Ok((alt_bytes, engine))
-    } else {
-        Ok(([b'+', b'/'], base64_standard))
-    }
 }
 
 fn slice_from_py_any<'a>(py_obj: &Bound<'a, PyAny>) -> PyResult<&'a [u8]> {
@@ -56,20 +52,11 @@ fn slice_from_py_any<'a>(py_obj: &Bound<'a, PyAny>) -> PyResult<&'a [u8]> {
     Ok(bytes)
 }
 
-fn validate_altchars(altchars: &[u8]) -> PyResult<[u8; 2]> {
-    if altchars.len() != 2 {
-        return Err(PyErr::new::<PyValueError, _>(
-            "altchars must be a bytes-like object of length 2",
-        ));
-    }
-    Ok([altchars[0], altchars[1]])
-}
-
 #[pyfunction]
 #[pyo3(signature = (s, altchars=None))]
-fn b64encode(s: &Bound<'_, PyAny>, altchars: Option<&Bound<'_, PyAny>>) -> PyResult<Vec<u8>> {
+fn b64encode(s: &Bound<'_, PyAny>, altchars: Option<Altchars>) -> PyResult<Vec<u8>> {
     let bytes = slice_from_py_any(s)?;
-    let (_, engine) = get_engine(altchars)?;
+    let engine = altchars_engine(altchars.unwrap_or(Altchars::default()))?;
 
     let size = encoded_len(bytes.len(), base64_standard.config().encode_padding()).map_or(
         Err(PyErr::new::<PyValueError, _>(
@@ -90,7 +77,7 @@ fn b64encode(s: &Bound<'_, PyAny>, altchars: Option<&Bound<'_, PyAny>>) -> PyRes
 #[pyo3(signature = (s, altchars=None, validate=false))]
 fn b64decode(
     s: &Bound<'_, PyAny>,
-    altchars: Option<&Bound<'_, PyAny>>,
+    altchars: Option<Altchars>,
     validate: bool,
 ) -> PyResult<Vec<u8>> {
     let bytes = if let Ok(s) = s.extract::<&str>() {
@@ -104,7 +91,12 @@ fn b64decode(
         )));
     };
 
-    let (altchars, engine) = get_engine(altchars)?;
+    let (altchars, engine) = if let Some(altchars) = altchars {
+        let engine = altchars_engine(altchars)?;
+        (altchars, engine)
+    } else {
+        (Altchars::default(), base64_standard)
+    };
 
     let decode_result = if !validate {
         let mut valid = [false; 256];
