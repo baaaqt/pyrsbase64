@@ -5,7 +5,7 @@ use pyo3::{exceptions::PyValueError, prelude::*};
 use crate::pybuf::convert_pybytebuf_to_slice;
 
 /// A pair of bytes representing the alternative characters for
-/// padding and the '/' character in base64 encoding.
+/// '+' and '/' characters in base64 encoding.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Altchars((u8, u8));
 
