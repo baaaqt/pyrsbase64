@@ -42,6 +42,9 @@ fn b64encode(s: &Bound<'_, PyAny>, altchars: Option<Altchars>) -> PyResult<Vec<u
     Ok(buf)
 }
 
+/// TODO:
+/// Currently, the function's speed is comparable to python's base64.b64decode.
+/// Validation can be optimized by removing the dependency on the external base64 crate.
 #[pyfunction]
 #[pyo3(signature = (s, altchars=None, validate=false))]
 fn b64decode(
