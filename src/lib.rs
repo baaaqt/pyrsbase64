@@ -11,8 +11,8 @@ use crate::pybuf::{convert_pybytebuf_to_slice, PyReadableBinaryIO, PyWriteableBi
 mod altchars;
 mod pybuf;
 
-const PY_IO_READ_BUF_SIZE: usize = 67584;
-const PY_IO_ENCODE_BUF_SIZE: usize = 90112;
+const PY_IO_READ_BUF_SIZE: usize = 57;
+const PY_IO_ENCODE_BUF_SIZE: usize = 76;
 
 fn altchars_engine(altchars: Altchars) -> PyResult<GeneralPurpose> {
     if altchars == Altchars::default() {
@@ -40,9 +40,7 @@ fn b64encode(s: &Bound<'_, PyAny>, altchars: Option<Altchars>) -> PyResult<Vec<u
     )?;
 
     let mut buf = vec![0u8; size];
-    engine
-        .encode_slice(bytes, &mut buf)
-        .unwrap();
+    engine.encode_slice(bytes, &mut buf).unwrap();
 
     Ok(buf)
 }
@@ -98,21 +96,18 @@ fn b64decode(
 
 #[pyfunction]
 fn encode(py: Python, input: PyReadableBinaryIO, output: PyWriteableBinaryIO) -> PyResult<()> {
-    let mut read_buf = Vec::with_capacity(PY_IO_READ_BUF_SIZE);
-    let mut encode_buf = vec![0u8; PY_IO_ENCODE_BUF_SIZE];
+    let mut read_buf = vec![0u8; PY_IO_READ_BUF_SIZE];
+    let mut encode_buf = vec![0u8; PY_IO_ENCODE_BUF_SIZE + 1];
     loop {
         let n = input.read(py, &mut read_buf)?;
-
         if n == 0 {
             break;
         }
-
         let encoded = base64_standard
             .encode_slice(&read_buf[..n], &mut encode_buf)
             .unwrap();
-        output.write(py, &encode_buf[..encoded])?;
-        read_buf.clear();
-        encode_buf.clear();
+        encode_buf[encoded] = b'\n';
+        output.write(py, &encode_buf[..encoded + 1])?;
     }
     Ok(())
 }
