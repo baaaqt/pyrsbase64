@@ -1,4 +1,5 @@
 import base64
+from io import BytesIO
 from typing import TYPE_CHECKING
 
 import pyrsbase64
@@ -40,6 +41,7 @@ def test_b64encode_altchars(data: "ReadableBuffer") -> None:
     altchars = b"-_"
     assert base64.b64encode(data, altchars) == pyrsbase64.b64encode(data, altchars)
 
+
 @pytest.mark.parametrize(
     "data",
     [
@@ -65,6 +67,8 @@ def test_b64decode(data: "ReadableBuffer") -> None:
         b"hello world\xff\xe0\x00",
         b"hello world!" * 100 + b"\xff\xe0\x00",
         b"\xff\xe0\x00" * 256,
+        memoryview(b"hello world"),
+        bytearray(b"hello world"),
     ],
     ids=lambda x: f"data_len={len(x)}",
 )
@@ -74,3 +78,24 @@ def test_b64decode_altchars(data: "ReadableBuffer") -> None:
     assert base64.b64decode(encoded, altchars) == pyrsbase64.b64decode(
         encoded, altchars
     )
+
+
+@pytest.mark.parametrize(
+    "data",
+    [
+        b"\xff\xe0\x00",
+        b"hello world\xff\xe0\x00",
+        b"hello world!" * 100 + b"\xff\xe0\x00",
+        b"\xff\xe0\x00" * 256,
+    ],
+)
+def test_encode(data: bytes) -> None:
+    input = BytesIO(data)
+    base64_output = BytesIO()
+    pyrsbase64_output = BytesIO()
+
+    base64.encode(input, base64_output)
+    input.seek(0)
+    pyrsbase64.encode(input, pyrsbase64_output)
+
+    assert base64_output.getvalue() == pyrsbase64_output.getvalue()
