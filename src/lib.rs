@@ -6,13 +6,10 @@ use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
 
 use crate::altchars::Altchars;
-use crate::pybuf::{convert_pybytebuf_to_slice, PyReadableBinaryIO, PyWriteableBinaryIO};
+use crate::pybuf::convert_pybytebuf_to_slice;
 
 mod altchars;
 mod pybuf;
-
-const PY_IO_READ_BUF_SIZE: usize = 57;
-const PY_IO_ENCODE_BUF_SIZE: usize = 76;
 
 fn altchars_engine(altchars: Altchars) -> PyResult<GeneralPurpose> {
     if altchars == Altchars::default() {
@@ -94,28 +91,9 @@ fn b64decode(
     })
 }
 
-#[pyfunction]
-fn encode(py: Python, input: PyReadableBinaryIO, output: PyWriteableBinaryIO) -> PyResult<()> {
-    let mut read_buf = vec![0u8; PY_IO_READ_BUF_SIZE];
-    let mut encode_buf = vec![0u8; PY_IO_ENCODE_BUF_SIZE + 1];
-    loop {
-        let n = input.read(py, &mut read_buf)?;
-        if n == 0 {
-            break;
-        }
-        let encoded = base64_standard
-            .encode_slice(&read_buf[..n], &mut encode_buf)
-            .unwrap();
-        encode_buf[encoded] = b'\n';
-        output.write(py, &encode_buf[..encoded + 1])?;
-    }
-    Ok(())
-}
-
 #[pymodule]
 fn pyrsbase64(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(b64encode, m)?)?;
     m.add_function(wrap_pyfunction!(b64decode, m)?)?;
-    m.add_function(wrap_pyfunction!(encode, m)?)?;
     Ok(())
 }
