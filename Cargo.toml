@@ -11,6 +11,7 @@ crate-type = ["cdylib"]
 [dependencies]
 base64 = "0.22.1"
 pyo3 = { version = "^0.26" }
+pyo3-file = "0.14.0"
 
 [profile.release]
 opt-level = 3
