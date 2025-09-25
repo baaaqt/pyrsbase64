@@ -22,7 +22,6 @@ if TYPE_CHECKING:
     ids=lambda x: f"data_len={len(x)}",
 )
 def test_b64encode(data: "ReadableBuffer") -> None:
-    data = b"hello world"
     assert base64.b64encode(data) == pyrsbase64.b64encode(data)
 
 
