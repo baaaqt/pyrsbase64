@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-use pyo3::prelude::*;
+use pyo3::{exceptions::PyValueError, prelude::*};
 
 use crate::pybuf::convert_pybytebuf_to_slice;
 
@@ -11,7 +11,7 @@ pub struct Altchars((u8, u8));
 
 impl Altchars {
     #[inline]
-    pub fn new(plus: u8, slash: u8) -> Self {
+    fn new(plus: u8, slash: u8) -> Self {
         Altchars((plus, slash))
     }
 
@@ -38,9 +38,16 @@ impl<'py> FromPyObject<'py> for Altchars {
     fn extract_bound(ob: &Bound<'py, PyAny>) -> PyResult<Self> {
         let bytes = convert_pybytebuf_to_slice(ob)?;
         if bytes.len() != 2 {
-            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+            return Err(PyErr::new::<PyValueError, _>(
                 "altchars must be exactly 2 bytes long",
             ));
+        }
+        for b in bytes {
+            if !b.is_ascii() {
+                return Err(PyErr::new::<PyValueError, _>(
+                    "Altchars must be ASCII bytes",
+                ));
+            }
         }
         Ok(Altchars::new(bytes[0], bytes[1]))
     }
