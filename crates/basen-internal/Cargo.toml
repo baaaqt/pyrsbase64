@@ -1,0 +1,11 @@
+[package]
+name = "basen-internal"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+
+[lib]
+name = "basen-internal"
+crate-type = ["lib", "cdylib"]
