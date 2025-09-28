@@ -7,5 +7,5 @@ publish = false
 [dependencies]
 
 [lib]
-name = "basen-internal"
+name = "basen_internal"
 crate-type = ["lib", "cdylib"]
