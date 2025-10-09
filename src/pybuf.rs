@@ -1,6 +1,6 @@
 use pyo3::{buffer::PyBuffer, exceptions::PyBufferError, prelude::*};
 
-pub fn convert_pybytebuf_to_slice<'py>(obj: &Bound<'py, PyAny>) -> PyResult<&'py [u8]> {
+pub(crate) fn convert_pybytebuf_to_slice<'py>(obj: &Bound<'py, PyAny>) -> PyResult<&'py [u8]> {
     let buf = PyBuffer::<u8>::get(obj)?;
     if !buf.is_c_contiguous() {
         return Err(PyErr::new::<pyo3::exceptions::PyBufferError, _>(
